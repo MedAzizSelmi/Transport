@@ -2,20 +2,18 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { api } from "@/lib/api"
-import Cookies from "js-cookie"
+import { useRouter } from "next/navigation"
 
-interface User {
+export interface User {
     id: number
     email: string
-    username: string
     first_name: string
     last_name: string
     phone: string
     user_type: "driver" | "passenger" | "both"
-    profile_picture?: string
-    bio: string
     is_verified: boolean
+    rating: number
+    created_at: string
 }
 
 interface AuthContextType {
@@ -24,7 +22,6 @@ interface AuthContextType {
     register: (userData: any) => Promise<void>
     logout: () => void
     loading: boolean
-    isAuthenticated: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -32,79 +29,86 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [loading, setLoading] = useState(true)
-
-    const isAuthenticated = !!user
+    const router = useRouter()
 
     useEffect(() => {
-        const token = Cookies.get("access_token")
+        // Check if user is logged in on mount
+        const token = localStorage.getItem("token")
         if (token) {
-            fetchUser()
+            // Validate token and get user data
+            fetchUser(token)
         } else {
             setLoading(false)
         }
     }, [])
 
-    const fetchUser = async () => {
+    const fetchUser = async (token: string) => {
         try {
-            const response = await api.get("/auth/profile/")
-            setUser(response.data)
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            if (response.ok) {
+                const userData = await response.json()
+                setUser(userData)
+            } else {
+                localStorage.removeItem("token")
+            }
         } catch (error) {
             console.error("Error fetching user:", error)
-            Cookies.remove("access_token")
-            Cookies.remove("refresh_token")
+            localStorage.removeItem("token")
         } finally {
             setLoading(false)
         }
     }
 
     const login = async (email: string, password: string) => {
-        try {
-            const response = await api.post("/auth/login/", { email, password })
-            const { user, access, refresh } = response.data
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email, password }),
+        })
 
-            Cookies.set("access_token", access, { expires: 1 })
-            Cookies.set("refresh_token", refresh, { expires: 7 })
-
-            setUser(user)
-        } catch (error: any) {
-            throw new Error(error.response?.data?.detail || "Erreur de connexion")
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.detail || "Login failed")
         }
+
+        const data = await response.json()
+        localStorage.setItem("token", data.access)
+        setUser(data.user)
     }
 
     const register = async (userData: any) => {
-        try {
-            const response = await api.post("/auth/register/", userData)
-            const { user, access, refresh } = response.data
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(userData),
+        })
 
-            Cookies.set("access_token", access, { expires: 1 })
-            Cookies.set("refresh_token", refresh, { expires: 7 })
-
-            setUser(user)
-        } catch (error: any) {
-            throw new Error(error.response?.data?.detail || "Erreur d'inscription")
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.detail || "Registration failed")
         }
+
+        const data = await response.json()
+        localStorage.setItem("token", data.access)
+        setUser(data.user)
     }
 
     const logout = () => {
-        Cookies.remove("access_token")
-        Cookies.remove("refresh_token")
+        localStorage.removeItem("token")
         setUser(null)
+        router.push("/")
     }
 
-    return (
-        <AuthContext.Provider
-            value={{
-                user,
-                login,
-                register,
-                logout,
-                loading,
-                isAuthenticated,
-            }}
-        >
-            {children}
-        </AuthContext.Provider>
-    )
+    return <AuthContext.Provider value={{ user, login, register, logout, loading }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

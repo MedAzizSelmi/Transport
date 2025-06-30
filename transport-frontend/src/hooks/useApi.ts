@@ -101,3 +101,121 @@ export function useCreateVehicle() {
         },
     })
 }
+
+export function useUpdateVehicle() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: number; data: any }) => {
+            const response = await api.put(`/auth/vehicles/${id}/`, data)
+            return response.data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["vehicles"] })
+        },
+    })
+}
+
+export function useDeleteVehicle() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async (id: number) => {
+            const response = await api.delete(`/auth/vehicles/${id}/`)
+            return response.data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["vehicles"] })
+        },
+    })
+}
+
+// Bookings hooks
+export function useBookings(params?: any) {
+    return useQuery({
+        queryKey: ["bookings", params],
+        queryFn: async () => {
+            const response = await api.get("/bookings/", { params })
+            return response.data
+        },
+    })
+}
+
+export function useCreateBooking() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({ tripId, bookingData }: { tripId: number; bookingData: any }) => {
+            const response = await api.post(`/trips/${tripId}/book/`, bookingData)
+            return response.data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["bookings"] })
+            queryClient.invalidateQueries({ queryKey: ["trips"] })
+        },
+    })
+}
+
+export function useCancelBooking() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async (bookingId: number) => {
+            const response = await api.post(`/bookings/${bookingId}/cancel/`)
+            return response.data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["bookings"] })
+            queryClient.invalidateQueries({ queryKey: ["trips"] })
+        },
+    })
+}
+
+// Ratings hooks
+export function useRatings(params?: any) {
+    return useQuery({
+        queryKey: ["ratings", params],
+        queryFn: async () => {
+            const response = await api.get("/ratings/my-ratings/", { params })
+            return response.data
+        },
+    })
+}
+
+export function useUserRatings(userId: number, params?: any) {
+    return useQuery({
+        queryKey: ["user-ratings", userId, params],
+        queryFn: async () => {
+            const response = await api.get(`/ratings/user/${userId}/`, { params })
+            return response.data
+        },
+        enabled: !!userId,
+    })
+}
+
+export function useUserRatingStats(userId: number) {
+    return useQuery({
+        queryKey: ["user-rating-stats", userId],
+        queryFn: async () => {
+            const response = await api.get(`/ratings/user/${userId}/stats/`)
+            return response.data
+        },
+        enabled: !!userId,
+    })
+}
+
+export function useCreateRating() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({ tripId, userId, ratingData }: { tripId: number; userId: number; ratingData: any }) => {
+            const response = await api.post(`/ratings/trip/${tripId}/user/${userId}/`, ratingData)
+            return response.data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["ratings"] })
+            queryClient.invalidateQueries({ queryKey: ["user-ratings"] })
+            queryClient.invalidateQueries({ queryKey: ["user-rating-stats"] })
+        },
+    })
+}
